@@ -1,11 +1,10 @@
 """
-🦊 Zootopia Office Dashboard v2
+🦊 Zootopia Office Dashboard v3
 =============================
-Enhanced with animations and modern UI like reference designs
+Animated office scene with moving characters
 """
 
 import streamlit as st
-import os
 from datetime import datetime
 
 # ===== Config =====
@@ -16,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Characters - Using raw URLs from GitHub
+# Characters with positions for office layout
 CHARACTERS = [
     {
         "id": "fox",
@@ -25,278 +24,320 @@ CHARACTERS = [
         "role": "GitHub Code Review",
         "image": "https://raw.githubusercontent.com/ReneTeacher/anime-office-dashboard/main/characters/code-fox-1771189494211.png",
         "status": "working",
-        "task": "Reviewing repositories...",
-        "color": "#FF6B35"
+        "task": "Coding...",
+        "color": "#FF6B35",
+        "position": "left"
     },
     {
         "id": "bunny",
-        "name": "News Bunny",
+        "name": "News Bunny", 
         "emoji": "🐰",
         "role": "Daily News",
         "image": "https://raw.githubusercontent.com/ReneTeacher/anime-office-dashboard/main/characters/news-bunny-1771189509899.png",
         "status": "idle",
-        "task": "Waiting for morning...",
-        "color": "#FFB6C1"
+        "task": "Reading news...",
+        "color": "#FFB6C1",
+        "position": "center-left"
     },
     {
         "id": "bear",
         "name": "Backup Bear",
         "emoji": "🐻",
-        "role": "Backup Management",
+        "role": "Backup",
         "image": "https://raw.githubusercontent.com/ReneTeacher/anime-office-dashboard/main/characters/backup-bear-1771189526301.png",
         "status": "idle",
-        "task": "Scheduled backup at 00:00",
-        "color": "#8B4513"
+        "task": "Resting...",
+        "color": "#8B4513",
+        "position": "center"
     },
     {
         "id": "owl",
         "name": "Weather Owl",
         "emoji": "🦉",
-        "role": "Weather Updates",
+        "role": "Weather",
         "image": "https://raw.githubusercontent.com/ReneTeacher/anime-office-dashboard/main/characters/weather-owl-1771189541236.png",
         "status": "idle",
-        "task": "Watching the sky...",
-        "color": "#4A90D9"
+        "task": "Watching sky...",
+        "color": "#4A90D9",
+        "position": "center-right"
     },
     {
         "id": "cat",
         "name": "Design Cat",
         "emoji": "🐱",
-        "role": "Midjourney Design",
+        "role": "Design",
         "image": "https://raw.githubusercontent.com/ReneTeacher/anime-office-dashboard/main/characters/design-cat-1771189556666.png",
         "status": "idle",
-        "task": "Ready for creative tasks...",
-        "color": "#FF69B4"
+        "task": "Creating...",
+        "color": "#FF69B4",
+        "position": "right"
     },
     {
         "id": "panda",
         "name": "Monitor Panda",
         "emoji": "🐼",
-        "role": "System Monitor",
+        "role": "Monitor",
         "image": "https://raw.githubusercontent.com/ReneTeacher/anime-office-dashboard/main/characters/monitor-panda-1771189572021.png",
         "status": "working",
-        "task": "Monitoring system...",
-        "color": "#2E8B57"
+        "task": "Monitoring...",
+        "color": "#2E8B57",
+        "position": "desk-right"
     }
 ]
 
 # ===== CSS =====
 st.markdown("""
 <style>
-    /* Import Google Font */
     @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
     
     * {
         font-family: 'Nunito', sans-serif;
     }
     
-    /* Main Background */
-    .stApp {
-        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-        min-height: 100vh;
-    }
-    
-    /* Title */
-    .title-container {
-        text-align: center;
-        padding: 30px 0 20px;
-    }
-    
-    .main-title {
-        font-size: 3.5rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FF6B35 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-        margin-bottom: 5px;
-    }
-    
-    .subtitle {
-        font-size: 1.1rem;
-        color: rgba(255, 255, 255, 0.6);
-        font-weight: 400;
-    }
-    
-    /* Character Avatar Circle */
-    .avatar-container {
+    /* Main Container - Office Scene */
+    .office-container {
         position: relative;
-        width: 120px;
-        height: 120px;
-        margin: 0 auto 15px;
+        width: 100%;
+        height: 700px;
+        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        border-radius: 30px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
     
-    .avatar-circle {
-        width: 120px;
+    /* Office Background Elements */
+    .office-bg {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: 
+            /* Windows */
+            radial-gradient(ellipse at 20% 10%, rgba(255,215,0,0.1) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 10%, rgba(255,215,0,0.1) 0%, transparent 50%),
+            /* Floor reflection */
+            linear-gradient(180deg, transparent 60%, rgba(255,215,0,0.05) 100%),
+            /* Main gradient */
+            linear-gradient(180deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+    }
+    
+    /* Desk */
+    .desk {
+        position: absolute;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80%;
         height: 120px;
+        background: linear-gradient(180deg, #3d2914 0%, #2a1d0f 100%);
+        border-radius: 10px 10px 0 0;
+        box-shadow: 0 -5px 30px rgba(0,0,0,0.5);
+    }
+    
+    /* Monitor on desk */
+    .monitor {
+        position: absolute;
+        bottom: 200px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 200px;
+        height: 130px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+        border: 8px solid #333;
+        border-radius: 10px;
+        box-shadow: 0 0 30px rgba(0,200,255,0.3);
+    }
+    
+    .monitor-screen {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #00c853 0%, #69f0ae 100%);
+        border-radius: 5px;
+        animation: screenGlow 3s ease-in-out infinite;
+    }
+    
+    @keyframes screenGlow {
+        0%, 100% { box-shadow: inset 0 0 30px rgba(0,200,100,0.3); }
+        50% { box-shadow: inset 0 0 50px rgba(0,200,100,0.5); }
+    }
+    
+    /* Character Container */
+    .character-wrapper {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transition: all 0.5s ease;
+    }
+    
+    /* Character Avatar */
+    .character-avatar {
+        width: 100px;
+        height: 100px;
         border-radius: 50%;
         overflow: hidden;
         border: 4px solid;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 
-                    inset 0 0 20px rgba(255, 255, 255, 0.1);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
         transition: all 0.3s ease;
     }
     
-    .avatar-circle:hover {
-        transform: scale(1.08);
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 
-                    inset 0 0 30px rgba(255, 255, 255, 0.2);
-    }
-    
-    .avatar-circle img {
+    .character-avatar img {
         width: 100%;
         height: 100%;
         object-fit: cover;
     }
     
+    /* Character Name Tag */
+    .character-tag {
+        background: rgba(0,0,0,0.7);
+        padding: 5px 15px;
+        border-radius: 20px;
+        margin-top: 10px;
+        backdrop-filter: blur(5px);
+    }
+    
+    .character-name {
+        color: white;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+    
+    .character-task {
+        color: rgba(255,255,255,0.6);
+        font-size: 0.7rem;
+        text-align: center;
+    }
+    
     /* Status Indicator */
-    .status-dot {
+    .status-indicator {
         position: absolute;
-        bottom: 5px;
-        right: 5px;
-        width: 20px;
-        height: 20px;
+        top: -5px;
+        right: -5px;
+        width: 25px;
+        height: 25px;
         border-radius: 50%;
         border: 3px solid #1a1a2e;
     }
     
     .status-working {
         background: linear-gradient(135deg, #00E676, #69F0AE);
-        box-shadow: 0 0 15px #00E676;
-        animation: pulse 2s infinite;
+        animation: pulse 1.5s infinite;
     }
     
     .status-idle {
         background: linear-gradient(135deg, #FFD700, #FFB300);
-        box-shadow: 0 0 15px #FFD700;
     }
     
     @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.6; }
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.2); opacity: 0.7; }
     }
     
-    /* Character Card */
-    .char-card {
-        background: linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-        border-radius: 24px;
-        padding: 25px 15px;
+    /* Floating Animation */
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    @keyframes floatReverse {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(10px); }
+    }
+    
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-15px); }
+    }
+    
+    /* Position-based animations */
+    .float-slow { animation: float 4s ease-in-out infinite; }
+    .float-medium { animation: float 3s ease-in-out infinite; }
+    .float-fast { animation: bounce 2s ease-in-out infinite; }
+    .float-reverse { animation: floatReverse 3.5s ease-in-out infinite; }
+    
+    /* Title */
+    .title-section {
         text-align: center;
-        border: 1px solid rgba(255,255,255,0.08);
-        backdrop-filter: blur(10px);
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        padding: 20px 0;
     }
     
-    .char-card:hover {
-        transform: translateY(-10px);
-        background: linear-gradient(145deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%);
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    .main-title {
+        font-size: 3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FF6B35 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 5px;
     }
     
-    .char-name {
-        font-size: 1.3rem;
-        font-weight: 700;
-        color: #FFFFFF;
-        margin: 10px 0 5px;
-    }
-    
-    .char-role {
-        font-size: 0.85rem;
-        color: rgba(255, 255, 255, 0.5);
-        margin-bottom: 10px;
-    }
-    
-    .char-task {
-        font-size: 0.75rem;
-        color: rgba(255, 255, 255, 0.4);
-        font-style: italic;
-    }
-    
-    /* Stats Card */
-    .stat-card {
-        background: linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-        border-radius: 20px;
+    /* Stats Bar */
+    .stats-bar {
+        display: flex;
+        justify-content: center;
+        gap: 40px;
         padding: 20px;
+    }
+    
+    .stat-item {
         text-align: center;
-        border: 1px solid rgba(255,255,255,0.08);
-        backdrop-filter: blur(10px);
     }
     
     .stat-value {
-        font-size: 2.5rem;
+        font-size: 1.8rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #FFD700, #FFA500);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #FFD700;
     }
     
     .stat-label {
-        font-size: 0.9rem;
-        color: rgba(255, 255, 255, 0.5);
-        margin-top: 5px;
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.5);
     }
     
-    /* Section Header */
-    .section-header {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #FFD700;
-        margin: 40px 0 25px;
-        padding-bottom: 15px;
-        border-bottom: 2px solid rgba(255, 215, 0, 0.3);
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
-    /* Activity Item */
-    .activity-item {
-        background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
-        border-radius: 16px;
+    /* Activity Panel */
+    .activity-panel {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
         padding: 15px 20px;
-        margin-bottom: 12px;
-        border-left: 4px solid #FFD700;
-        transition: all 0.3s ease;
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
     }
     
-    .activity-item:hover {
-        background: linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-        transform: translateX(5px);
+    .activity-item {
+        white-space: nowrap;
+        color: rgba(255,255,255,0.8);
+        font-size: 0.85rem;
     }
     
-    .activity-time {
-        font-size: 0.75rem;
-        color: rgba(255, 255, 255, 0.4);
+    /* Hide scrollbar */
+    ::-webkit-scrollbar { display: none; }
+    
+    /* Window light effect */
+    .window-light {
+        position: absolute;
+        top: 0;
+        width: 150px;
+        height: 200px;
+        background: linear-gradient(180deg, rgba(255,215,0,0.15) 0%, transparent 100%);
+        border-radius: 0 0 50% 50%;
     }
     
-    .activity-text {
-        color: rgba(255, 255, 255, 0.85);
-        font-size: 0.95rem;
+    .window-left { left: 10%; }
+    .window-right { right: 10%; }
+    
+    /* Plants */
+    .plant {
+        position: absolute;
+        bottom: 80px;
+        font-size: 3rem;
     }
     
-    /* Action Button */
-    .action-btn {
-        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 100%);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 15px 10px;
-        color: white;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-    
-    .action-btn:hover {
-        background: linear-gradient(135deg, rgba(255,215,0,0.2) 0%, rgba(255,165,0,0.2) 100%);
-        border-color: rgba(255, 215, 0, 0.5);
-        transform: translateY(-3px);
-    }
-    
-    /* Hide default Streamlit elements */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden}
-    header {visibility: hidden}
+    .plant-left { left: 5%; }
+    .plant-right { right: 5%; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -304,88 +345,98 @@ st.markdown("""
 def main():
     # Title
     st.markdown("""
-    <div class="title-container">
+    <div class="title-section">
         <h1 class="main-title">🏢 Zootopia Office</h1>
-        <p class="subtitle">Welcome to the AI Office • {}</p>
+        <p style="color: rgba(255,255,255,0.5);">{}</p>
     </div>
     """.format(datetime.now().strftime("%Y-%m-%d %H:%M")), unsafe_allow_html=True)
     
-    # ===== Stats =====
-    cols = st.columns(4)
-    stats = [("👥", "6", "Team Members"), ("⚡", "2", "Active Now"), ("📅", "7", "Daily Tasks"), ("✅", "100%", "Uptime")]
+    # Stats
+    st.markdown("""
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-value">6</div>
+            <div class="stat-label">Team</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">2</div>
+            <div class="stat-label">Active</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">7</div>
+            <div class="stat-label">Tasks</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">100%</div>
+            <div class="stat-label">Uptime</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    for idx, (icon, value, label) in enumerate(stats):
-        with cols[idx]:
-            st.markdown(f"""
-            <div class="stat-card">
-                <div style="font-size: 2rem; margin-bottom: 5px;">{}</div>
-                <div class="stat-value">{}</div>
-                <div class="stat-label">{}</div>
-            </div>
-            """.format(icon, value, label), unsafe_allow_html=True)
+    # Office Scene
+    st.markdown('<div class="office-container">', unsafe_allow_html=True)
     
-    # ===== Team Section =====
-    st.markdown('<div class="section-header">👥 Meet the Team</div>', unsafe_allow_html=True)
+    # Background
+    st.markdown('<div class="office-bg">', unsafe_allow_html=True)
     
-    # 3x2 Grid
-    cols = st.columns(3)
+    # Windows
+    st.markdown('<div class="window-light window-left"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="window-light window-right"></div>', unsafe_allow_html=True)
+    
+    # Plants
+    st.markdown('<div class="plant plant-left">🪴</div>', unsafe_allow_html=True)
+    st.markdown('<div class="plant plant-right">🌵</div>', unsafe_allow_html=True)
+    
+    # Monitor
+    st.markdown("""
+    <div class="monitor">
+        <div class="monitor-screen"></div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Desk
+    st.markdown('<div class="desk"></div>', unsafe_allow_html=True)
+    
+    # Characters positioned in office
+    positions = {
+        "left": ("15%", "float-slow"),
+        "center-left": ("30%", "float-medium"),
+        "center": ("50%", "float-slow"),
+        "center-right": ("70%", "float-reverse"),
+        "right": ("85%", "float-medium"),
+        "desk-right": ("75%", "float-fast")
+    }
     
     for idx, char in enumerate(CHARACTERS):
-        with cols[idx % 3]:
-            # Status dot class
-            status_class = "status-working" if char["status"] == "working" else "status-idle"
-            
-            st.markdown(f"""
-            <div class="char-card">
-                <div class="avatar-container">
-                    <div class="avatar-circle" style="border-color: {char['color']};">
-                        <img src="{char['image']}" alt="{char['name']}" onerror="this.src='https://via.placeholder.com/120?text={char['emoji']}'">
-                    </div>
-                    <div class="status-dot {status_class}"></div>
-                </div>
-                <div class="char-name">{char['emoji']} {char['name']}</div>
-                <div class="char-role">{char['role']}</div>
-                <div class="char-task">📝 {char['task']}</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # ===== Activity Section =====
-    st.markdown('<div class="section-header">📋 Recent Activity</div>', unsafe_allow_html=True)
-    
-    activities = [
-        ("21:30", "🦊 Code Fox completed code review for todo-list"),
-        ("21:00", "🦉 Weather Owl fetched today's weather forecast"),
-        ("20:00", "🐰 News Bunny prepared daily news summary"),
-        ("19:00", "🐼 Monitor Panda ran system health check"),
-        ("07:00", "🐻 Backup Bear completed daily database backup"),
-        ("06:00", "🦊 Code Fox reviewed 4 GitHub repositories")
-    ]
-    
-    for time, text in activities:
+        pos, anim = positions.get(char["position"], ("50%", "float-slow"))
+        status_class = "status-working" if char["status"] == "working" else "status-idle"
+        
         st.markdown(f"""
-        <div class="activity-item">
-            <div class="activity-time">{}</div>
-            <div class="activity-text">{}</div>
+        <div class="character-wrapper" style="left: {pos}; bottom: 180px;" class="{anim}">
+            <div style="position: relative;">
+                <div class="character-avatar" style="border-color: {char['color']};">
+                    <img src="{char['image']}" alt="{char['name']}">
+                </div>
+                <div class="status-indicator {status_class}"></div>
+            </div>
+            <div class="character-tag">
+                <div class="character-name">{char['emoji']} {char['name']}</div>
+                <div class="character-task">{char['task']}</div>
+            </div>
         </div>
-        """.format(time, text), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
-    # ===== Actions =====
-    st.markdown('<div class="section-header">⚡ Quick Actions</div>', unsafe_allow_html=True)
+    # Activity bar at bottom
+    st.markdown("""
+    <div class="activity-panel">
+        <div class="activity-item">🦊 Code Fox - Completed code review</div>
+        <div class="activity-item">🐼 Monitor Panda - System healthy</div>
+        <div class="activity-item">🦉 Weather Owl - Weather updated</div>
+        <div class="activity-item">🐰 News Bunny - News ready</div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    cols = st.columns(6)
-    actions = [
-        ("🔄", "Run Code Review"),
-        ("📰", "Get News"),
-        ("💾", "Run Backup"),
-        ("🌤️", "Check Weather"),
-        ("🎨", "Generate Image"),
-        ("🏥", "Health Check")
-    ]
-    
-    for idx, (icon, label) in enumerate(actions):
-        with cols[idx]:
-            if st.button(f"{icon} {label}", key=f"btn_{idx}", use_container_width=True):
-                st.toast(f"⚡ {label} triggered!")
+    st.markdown('</div></div>', unsafe_allow_html=True)  # Close office-bg and office-container
 
 if __name__ == "__main__":
     main()
