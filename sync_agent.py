@@ -7,7 +7,7 @@ Syncs OpenClaw session and cron data to Supabase every 30 seconds
 import json
 import time
 import os
-import sys
+import glob
 from pathlib import Path
 from datetime import datetime
 from supabase import create_client, Client
@@ -33,13 +33,34 @@ def get_supabase_client() -> Client:
 
 # ======== Read OpenClaw Data ========
 def read_sessions_data():
-    """Read OpenClaw sessions from sessions.json"""
-    sessions_file = OPENCLAW_SESSIONS_DIR / "sessions.json"
-    if not sessions_file.exists():
+    """Read OpenClaw sessions from .jsonl files"""
+    sessions = {}
+    
+    if not OPENCLAW_SESSIONS_DIR.exists():
         return {}
     
-    with open(sessions_file, 'r') as f:
-        return json.load(f)
+    # Find all active session files
+    for f in OPENCLAW_SESSIONS_DIR.glob("*.jsonl"):
+        if ".deleted." in f.name or ".lock" in f.name:
+            continue
+        
+        try:
+            # Read last line for current state
+            with open(f, 'r') as file:
+                lines = file.readlines()
+                if lines:
+                    last_line = json.loads(lines[-1])
+                    # Extract session info from last message
+                    session_id = f.stem
+                    sessions[session_id] = {
+                        "sessionId": session_id,
+                        "updatedAt": last_line.get("timestamp", 0) * 1000 if "timestamp" in last_line else datetime.now().timestamp() * 1000,
+                        "currentTask": last_line.get("content", "")[:100] if "content" in last_line else "Active session",
+                    }
+        except Exception as e:
+            print(f"⚠️  Error reading {f.name}: {e}")
+    
+    return sessions
 
 def read_cron_jobs():
     """Read OpenClaw cron jobs"""
@@ -50,23 +71,12 @@ def read_cron_jobs():
     with open(jobs_file, 'r') as f:
         return json.load(f)
 
-def get_active_session_files():
-    """Get list of active (non-deleted) session files"""
-    if not OPENCLAW_SESSIONS_DIR.exists():
-        return []
-    
-    sessions = []
-    for f in OPENCLAW_SESSIONS_DIR.glob("*.jsonl"):
-        if ".deleted." not in f.name and ".reset." not in f.name and ".lock" not in f.name:
-            sessions.append(f)
-    return sessions
-
 # ======== Process Data ========
 def process_agent_status(sessions_data):
     """Process session data to extract agent statuses"""
     agents = []
     
-    for agent_id, session_info in sessions_data.items():
+    for session_id, session_info in sessions_data.items():
         # Determine status based on session activity
         updated_at = session_info.get("updatedAt", 0)
         current_time = datetime.now().timestamp() * 1000
@@ -80,21 +90,18 @@ def process_agent_status(sessions_data):
         else:
             status = "completed"
         
-        # Extract task info from session
+        # Extract task info
         task_name = session_info.get("currentTask", "Active session")
-        thinking_level = session_info.get("thinkingLevel", "normal")
         
         agents.append({
-            "agent_name": agent_id,
+            "agent_name": session_id[:50],  # Limit length
             "status": status,
             "task_name": task_name,
-            "started_at": datetime.fromtimestamp(updated_at / 1000).isoformat(),
+            "started_at": datetime.fromtimestamp(updated_at / 1000).isoformat() if updated_at else datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
-            "details": {
-                "session_id": session_info.get("sessionId", ""),
-                "thinking_level": thinking_level,
-                "system_sent": session_info.get("systemSent", False)
-            }
+            "details": json.dumps({
+                "session_id": session_id,
+            })
         })
     
     return agents
@@ -111,7 +118,6 @@ def process_cron_jobs(jobs_data):
         if not job.get("enabled", True):
             status = "stopped"
         elif state.get("lastStatus") == "ok":
-            # Check if next run is soon
             next_run = state.get("nextRunAtMs", 0)
             current_time = datetime.now().timestamp() * 1000
             if next_run > current_time:
@@ -129,7 +135,7 @@ def process_cron_jobs(jobs_data):
             "timezone": schedule.get("tz", ""),
             "session_target": job.get("sessionTarget", ""),
             "wake_mode": job.get("wakeMode", ""),
-            "payload_message": job.get("payload", {}).get("message", "")[:500],  # Truncate long messages
+            "payload_message": job.get("payload", {}).get("message", "")[:500],
             "model": job.get("payload", {}).get("model", ""),
             "delivery_mode": job.get("delivery", {}).get("mode", ""),
             "delivery_channel": job.get("delivery", {}).get("channel", ""),
@@ -152,31 +158,28 @@ def sync_agent_status(supabase: Client, agents):
     
     for agent in agents:
         try:
-            # Check if agent exists
             existing = supabase.table("agent_status").select("id").eq("agent_name", agent["agent_name"]).execute()
             
             if existing.data:
-                # Update existing
                 supabase.table("agent_status").update({
                     "status": agent["status"],
                     "task_name": agent["task_name"],
                     "updated_at": agent["updated_at"],
-                    "details": json.dumps(agent["details"])
+                    "details": agent["details"]
                 }).eq("agent_name", agent["agent_name"]).execute()
             else:
-                # Insert new
                 supabase.table("agent_status").insert({
                     "agent_name": agent["agent_name"],
                     "status": agent["status"],
                     "task_name": agent["task_name"],
                     "started_at": agent["started_at"],
                     "updated_at": agent["updated_at"],
-                    "details": json.dumps(agent["details"])
+                    "details": agent["details"]
                 }).execute()
             
-            print(f"✅ Synced agent: {agent['agent_name']} - {agent['status']}")
+            print(f"✅ Synced agent: {agent['agent_name'][:30]} - {agent['status']}")
         except Exception as e:
-            print(f"❌ Error syncing agent {agent['agent_name']}: {e}")
+            print(f"❌ Error syncing agent: {e}")
 
 def sync_cron_jobs(supabase: Client, jobs):
     """Sync cron jobs to Supabase"""
@@ -185,19 +188,16 @@ def sync_cron_jobs(supabase: Client, jobs):
     
     for job in jobs:
         try:
-            # Check if job exists
             existing = supabase.table("cron_jobs").select("id").eq("job_id", job["job_id"]).execute()
             
             if existing.data:
-                # Update existing
                 supabase.table("cron_jobs").update(job).eq("job_id", job["job_id"]).execute()
             else:
-                # Insert new
                 supabase.table("cron_jobs").insert(job).execute()
             
-            print(f"✅ Synced cron job: {job['name']} - {job.get('last_status', 'unknown')}")
+            print(f"✅ Synced job: {job['name']} - {job.get('last_status', 'unknown')}")
         except Exception as e:
-            print(f"❌ Error syncing cron job {job['name']}: {e}")
+            print(f"❌ Error syncing job: {e}")
 
 def log_activity(supabase: Client, activity_type: str, description: str, agent_name: str = ""):
     """Log activity to Supabase"""
@@ -214,7 +214,7 @@ def log_activity(supabase: Client, activity_type: str, description: str, agent_n
     except Exception as e:
         print(f"⚠️  Activity log error: {e}")
 
-# ======== Demo Mode (No Supabase) ========
+# ======== Demo Mode ========
 def print_demo_status(agents, jobs):
     """Print status when Supabase is not configured"""
     print("\n" + "="*50)
@@ -222,14 +222,17 @@ def print_demo_status(agents, jobs):
     print("="*50)
     
     print("\n👥 Active Agents:")
-    for agent in agents:
-        emoji = "🟢" if agent["status"] == "working" else "🟡" if agent["status"] == "idle" else "🔴"
-        print(f"  {emoji} {agent['agent_name']}: {agent['status']} - {agent['task_name']}")
+    if agents:
+        for agent in agents:
+            emoji = "🟢" if agent["status"] == "working" else "🟡" if agent["status"] == "idle" else "🔴"
+            print(f"  {emoji} {agent['agent_name'][:30]}: {agent['status']}")
+    else:
+        print("  (No active sessions)")
     
     print("\n⚙️ Cron Jobs:")
     for job in jobs:
         emoji = "✅" if job.get("last_status") == "ok" else "❌" if job.get("last_status") == "error" else "⏳"
-        print(f"  {emoji} {job['name']}: {job.get('schedule_expr', 'N/A')} (Last: {job.get('last_status', 'never')})")
+        print(f"  {emoji} {job['name']}: {job.get('schedule_expr', 'N/A')}")
     
     print("\n" + "="*50 + "\n")
 
@@ -251,15 +254,12 @@ def main():
     
     while True:
         try:
-            # Read OpenClaw data
             sessions_data = read_sessions_data()
             cron_data = read_cron_jobs()
             
-            # Process data
             agents = process_agent_status(sessions_data)
             jobs = process_cron_jobs(cron_data)
             
-            # Sync to Supabase or demo mode
             if supabase:
                 sync_agent_status(supabase, agents)
                 sync_cron_jobs(supabase, jobs)
@@ -267,7 +267,6 @@ def main():
             else:
                 print_demo_status(agents, jobs)
             
-            # Wait for next sync
             time.sleep(SYNC_INTERVAL)
             
         except KeyboardInterrupt:
