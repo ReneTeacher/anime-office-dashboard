@@ -381,7 +381,8 @@ def process_openclaw_crons(cron_data):
             status = "stopped"
         elif state.get("lastStatus") == "ok":
             next_run = state.get("nextRunAtMs", 0)
-            if next_run > current_time := datetime.now().timestamp() * 1000:
+            current_time = datetime.now().timestamp() * 1000
+            if next_run > current_time:
                 status = "pending"
             else:
                 status = "running"
