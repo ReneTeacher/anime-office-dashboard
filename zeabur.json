@@ -1,0 +1,8 @@
+{
+  "name": "anime-office-dashboard",
+  "env": {},
+  "build": {
+    "builder": "ZEABUR"
+  },
+  "version": 1
+}
