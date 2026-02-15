@@ -1,14 +1,26 @@
 """
 🍃 Anime Office Command Center 🌸
-A kawaii dashboard to monitor your agents like cute anime employees!
+A kawaii dashboard to monitor your OpenClaw agents like cute anime employees!
+Now with REAL data from OpenClaw + Supabase!
 """
 
 import streamlit as st
 import json
 import time
-import random
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 from pathlib import Path
+from supabase import create_client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# ======== Configuration ========
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+OPENCLAW_SESSIONS_DIR = Path("/home/node/.openclaw/agents/main/sessions")
+OPENCLAW_CRON_DIR = Path("/home/node/.openclaw/cron")
 
 # ======== Page Config ========
 st.set_page_config(
@@ -17,6 +29,16 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ======== Initialize Supabase ========
+@st.cache_resource
+def get_supabase_client():
+    """Initialize Supabase client (cached)"""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+supabase = get_supabase_client()
 
 # ======== Custom CSS - Kawaii Anime Style ========
 st.markdown("""
@@ -195,26 +217,6 @@ st.markdown("""
         color: #FF6B9D !important;
     }
     
-    /* Decorative Elements */
-    .sparkle {
-        position: absolute;
-        animation: sparkle 1.5s infinite;
-    }
-    
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {
-        width: 10px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: #FFF0F5;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: #FFB6C1;
-        border-radius: 10px;
-    }
-    
     /* Emoji reactions */
     .emoji-float {
         animation: float 3s ease-in-out infinite;
@@ -224,87 +226,39 @@ st.markdown("""
         0%, 100% { transform: translateY(0) rotate(0deg); }
         50% { transform: translateY(-10px) rotate(5deg); }
     }
+    
+    /* Real-time indicator */
+    .live-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: #2ECC71;
+        font-weight: bold;
+    }
+    
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background: #2ECC71;
+        border-radius: 50%;
+        animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
 </style>
 """, unsafe_allow_html=True)
-
-# ======== Session State for Real-time Updates ========
-if 'last_update' not in st.session_state:
-    st.session_state.last_update = datetime.now()
-
-if 'auto_refresh' not in st.session_state:
-    st.session_state.auto_refresh = True
-
-# ======== Sample Data - Anime Employees ========
-EMPLOYEES = [
-    {
-        "name": "Sakura-chan",
-        "role": "Main Agent",
-        "emoji": "🌸",
-        "color": "#FFB6C1",
-        "status": "active",
-        "task": "Processing requests",
-        "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Sakura&backgroundColor=ffeaa7",
-        "quote": "I'll do my best! ✨"
-    },
-    {
-        "name": "Yuki-kun", 
-        "role": "Data Analyst",
-        "emoji": "❄️",
-        "color": "#74b9ff",
-        "status": "active",
-        "task": "Analyzing logs",
-        "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Yuki&backgroundColor=dfe6e9",
-        "quote": "Data is beautiful! 📊"
-    },
-    {
-        "name": "Hana-san",
-        "role": "Scheduler",
-        "emoji": "🌺",
-        "color": "#fd79a8",
-        "status": "idle",
-        "task": "Waiting for cron",
-        "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Hana&backgroundColor=fab1a0",
-        "quote": "Time management! ⏰"
-    },
-    {
-        "name": "Kaito-kun",
-        "role": "Messenger",
-        "emoji": "🎵",
-        "color": "#a29bfe",
-        "status": "busy",
-        "task": "Delivering messages",
-        "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Kaito&backgroundColor=81ecec",
-        "quote": "Message delivered! 💌"
-    },
-    {
-        "name": "Mochi-chan",
-        "role": "Memory Keeper",
-        "emoji": "🍡",
-        "color": "#ffeaa7",
-        "status": "active",
-        "task": "Storing memories",
-        "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Mochi&backgroundColor=dfe6e9",
-        "quote": "So sweet! 💕"
-    }
-]
-
-# ======== Sample Cron Jobs ========
-CRON_JOBS = [
-    {"name": "Morning Check-in", "schedule": "0 8 * * *", "status": "completed", "last_run": "08:00 AM"},
-    {"name": "Hourly Sync", "schedule": "0 * * * *", "status": "running", "last_run": "12:00 PM"},
-    {"name": "Data Backup", "schedule": "0 2 * * *", "status": "pending", "last_run": "Yesterday"},
-    {"name": "Cleanup Task", "schedule": "0 0 * * *", "status": "completed", "last_run": "12:00 AM"},
-    {"name": "Health Check", "schedule": "*/15 * * * *", "status": "running", "last_run": "12:45 PM"},
-]
 
 # ======== Helper Functions ========
 def get_status_emoji(status):
     status_map = {
-        "active": "🟢",
+        "working": "🟢",
         "idle": "🟡", 
-        "busy": "🔴",
+        "completed": "✅",
+        "failed": "🔴",
         "running": "✅",
-        "completed": "🎉",
         "pending": "⏳",
         "stopped": "⏹️"
     }
@@ -312,15 +266,172 @@ def get_status_emoji(status):
 
 def get_status_class(status):
     status_map = {
-        "active": "active",
+        "working": "active",
         "idle": "idle",
-        "busy": "busy",
+        "completed": "active",
+        "failed": "busy",
         "running": "running",
-        "completed": "running",
         "pending": "pending",
         "stopped": "stopped"
     }
     return status_map.get(status, "")
+
+# ======== Data Fetching Functions ========
+@st.cache_data(ttl=10)
+def fetch_agent_status_from_supabase():
+    """Fetch real agent status from Supabase"""
+    if not supabase:
+        return None
+    try:
+        result = supabase.table("agent_status").select("*").execute()
+        return result.data
+    except Exception as e:
+        st.error(f"Error fetching agents: {e}")
+        return None
+
+@st.cache_data(ttl=10)
+def fetch_cron_jobs_from_supabase():
+    """Fetch real cron jobs from Supabase"""
+    if not supabase:
+        return None
+    try:
+        result = supabase.table("cron_jobs").select("*").execute()
+        return result.data
+    except Exception as e:
+        st.error(f"Error fetching cron jobs: {e}")
+        return None
+
+@st.cache_data(ttl=10)
+def fetch_recent_activity_from_supabase(limit=10):
+    """Fetch recent activity from Supabase"""
+    if not supabase:
+        return None
+    try:
+        result = supabase.table("activity_log").select("*").order("recorded_at", desc=True).limit(limit).execute()
+        return result.data
+    except Exception as e:
+        st.error(f"Error fetching activity: {e}")
+        return None
+
+def read_sessions_from_openclaw():
+    """Read sessions directly from OpenClaw filesystem"""
+    sessions_file = OPENCLAW_SESSIONS_DIR / "sessions.json"
+    if not sessions_file.exists():
+        return {}
+    try:
+        with open(sessions_file, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        return {}
+
+def read_cron_from_openclaw():
+    """Read cron jobs directly from OpenClaw filesystem"""
+    jobs_file = OPENCLAW_CRON_DIR / "jobs.json"
+    if not jobs_file.exists():
+        return {"jobs": []}
+    try:
+        with open(jobs_file, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return {"jobs": []}
+
+def process_openclaw_sessions(sessions_data):
+    """Process OpenClaw sessions into agent cards"""
+    agents = []
+    current_time = datetime.now().timestamp() * 1000
+    
+    for agent_id, session_info in sessions_data.items():
+        updated_at = session_info.get("updatedAt", 0)
+        time_diff = current_time - updated_at
+        
+        # Determine status
+        if time_diff < 5 * 60 * 1000:  # Active in last 5 min
+            status = "working"
+        elif time_diff < 30 * 60 * 1000:  # Active in last 30 min
+            status = "idle"
+        else:
+            status = "completed"
+        
+        # Get details
+        details = session_info.get("skillsSnapshot", {})
+        
+        agents.append({
+            "name": agent_id.replace("agent:", "").title(),
+            "agent_id": agent_id,
+            "status": status,
+            "task": f"Session: {session_info.get('sessionId', 'N/A')[:8]}...",
+            "thinking_level": session_info.get("thinkingLevel", "normal"),
+            "last_update": datetime.fromtimestamp(updated_at / 1000).strftime("%H:%M:%S"),
+            "session_id": session_info.get("sessionId", ""),
+            "skills_count": len(details.get("skills", []))
+        })
+    
+    return agents
+
+def process_openclaw_crons(cron_data):
+    """Process OpenClaw cron jobs"""
+    jobs = []
+    
+    for job in cron_data.get("jobs", []):
+        state = job.get("state", {})
+        schedule = job.get("schedule", {})
+        
+        # Determine status
+        if not job.get("enabled", True):
+            status = "stopped"
+        elif state.get("lastStatus") == "ok":
+            next_run = state.get("nextRunAtMs", 0)
+            if next_run > current_time := datetime.now().timestamp() * 1000:
+                status = "pending"
+            else:
+                status = "running"
+        else:
+            status = "failed"
+        
+        # Format last run time
+        last_run = state.get("lastRunAtMs")
+        last_run_str = "Never"
+        if last_run:
+            last_run_dt = datetime.fromtimestamp(last_run / 1000)
+            if last_run_dt.date() == datetime.now().date():
+                last_run_str = last_run_dt.strftime("%H:%M")
+            else:
+                last_run_str = last_run_dt.strftime("%m-%d %H:%M")
+        
+        jobs.append({
+            "name": job.get("name", "Unnamed Job"),
+            "job_id": job.get("id", ""),
+            "status": status,
+            "schedule": schedule.get("expr", "N/A"),
+            "timezone": schedule.get("tz", "UTC"),
+            "last_run": last_run_str,
+            "last_status": state.get("lastStatus", "never"),
+            "last_duration": state.get("lastDurationMs", 0),
+            "next_run": state.get("nextRunAtMs", 0),
+            "enabled": job.get("enabled", True),
+            "delivery": job.get("delivery", {})
+        })
+    
+    return jobs
+
+# ======== Main Data Loading ========
+# Try Supabase first, fall back to OpenClaw filesystem
+agents_data = []
+cron_data_list = []
+use_supabase = supabase is not None
+
+if use_supabase:
+    agents_data = fetch_agent_status_from_supabase() or []
+    cron_data_list = fetch_cron_jobs_from_supabase() or []
+
+# If no Supabase data, read from OpenClaw directly
+if not agents_data:
+    sessions = read_sessions_from_openclaw()
+    agents_data = process_openclaw_sessions(sessions)
+
+if not cron_data_list:
+    crons = read_cron_from_openclaw()
+    cron_data_list = process_openclaw_crons(crons)
 
 # ======== Sidebar ========
 with st.sidebar:
@@ -330,23 +441,37 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
+    # Connection status
+    if use_supabase:
+        st.markdown('<div class="live-indicator"><span class="live-dot"></span> Connected to Supabase</div>', unsafe_allow_html=True)
+    else:
+        st.warning("⚠️ Demo Mode - No Supabase")
+        st.caption("Set SUPABASE_URL and SUPABASE_KEY env vars")
+    
     st.markdown("### 📊 Office Stats")
     
-    active_count = sum(1 for e in EMPLOYEES if e["status"] == "active")
-    idle_count = sum(1 for e in EMPLOYEES if e["status"] == "idle")
-    busy_count = sum(1 for e in EMPLOYEES if e["status"] == "busy")
+    active_count = sum(1 for a in agents_data if a.get("status", a.get("status", "")) == "working")
+    idle_count = sum(1 for a in agents_data if a.get("status", a.get("status", "")) == "idle")
+    busy_count = sum(1 for a in agents_data if a.get("status", a.get("status", "")) == "failed")
     
     col1, col2 = st.columns(2)
-    col1.metric("🟢 Active", active_count)
+    col1.metric("🟢 Working", active_count)
     col2.metric("🟡 Idle", idle_count)
-    st.metric("🔴 Busy", busy_count)
+    st.metric("🔴 Issues", busy_count)
+    
+    st.markdown("---")
+    
+    # Cron stats
+    running_crons = sum(1 for c in cron_data_list if c.get("status") == "running")
+    enabled_crons = sum(1 for c in cron_data_list if c.get("enabled", True))
+    st.markdown("### ⚙️ Cron Jobs")
+    st.metric("⚡ Active", running_crons, f"/ {enabled_crons} enabled")
     
     st.markdown("---")
     
     # Auto-refresh toggle
     st.session_state.auto_refresh = st.toggle("🔄 Auto Refresh", value=True)
-    
-    refresh_rate = st.slider("⏱️ Refresh Rate (sec)", 1, 10, 3)
+    refresh_rate = st.slider("⏱️ Refresh Rate (sec)", 1, 30, 5)
     
     st.markdown("---")
     
@@ -365,23 +490,29 @@ with st.sidebar:
 st.title("🍃 Anime Office Command Center 🌸")
 st.markdown("### *Welcome to your kawaii workplace! Let's get things done!*\n")
 
+# Live indicator
+st.markdown(f"""
+<div class="live-indicator" style="text-align: center; margin-bottom: 20px;">
+    <span class="live-dot"></span> LIVE DATA - Last updated: {datetime.now().strftime("%H:%M:%S")}
+</div>
+""", unsafe_allow_html=True)
+
 # ======== Top Stats Row ========
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric("👥 Total Employees", len(EMPLOYEES))
+    st.metric("👥 Total Agents", len(agents_data))
 
 with col2:
     st.metric("✅ Working Now", active_count + busy_count)
 
 with col3:
-    running_crons = sum(1 for c in CRON_JOBS if c["status"] == "running")
-    st.metric("⚙️ Active Tasks", running_crons)
+    st.metric("📅 Cron Jobs", len(cron_data_list))
 
 with col4:
-    st.metric("📅 Today", datetime.now().strftime("%Y-%m-%d"))
+    st.metric("🕐 Today", datetime.now().strftime("%Y-%m-%d"))
 
-# ======== Employee Office Grid ========
+# ======== Agent Office Grid ========
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center;">
@@ -390,23 +521,46 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Create office grid
-cols = st.columns(5)
-
-for i, emp in enumerate(EMPLOYEES):
-    with cols[i % 5]:
-        status_class = get_status_class(emp["status"])
-        
-        st.markdown(f"""
-        <div class="employee-card {status_class}">
-            <img src="{emp['avatar']}" width="80" style="border-radius: 50%; border: 3px solid {emp['color']};">
-            <h3 style="margin: 10px 0 5px 0; color: #333 !important;">{emp['emoji']} {emp['name']}</h3>
-            <p style="margin: 0; color: #666; font-size: 0.9rem;">{emp['role']}</p>
-            <span class="status-badge status-{emp['status']}">{get_status_emoji(emp['status'])} {emp['status'].upper()}</span>
-            <p style="margin: 10px 0 5px 0; font-size: 0.85rem;">📝 {emp['task']}</p>
-            <p style="margin: 0; font-size: 0.8rem; font-style: italic; color: #888;">"{emp['quote']}"</p>
-        </div>
-        """, unsafe_allow_html=True)
+# Create office grid - handle both dict and list formats
+if agents_data:
+    num_cols = min(5, len(agents_data))
+    cols = st.columns(num_cols)
+    
+    for i, agent in enumerate(agents_data[:10]):  # Show max 10 agents
+        with cols[i % num_cols]:
+            # Handle both dict and object formats
+            if isinstance(agent, dict):
+                name = agent.get("name", agent.get("agent_name", "Unknown"))
+                status = agent.get("status", "idle")
+                task = agent.get("task", agent.get("task_name", "No task"))
+                last_update = agent.get("last_update", "")
+                session_id = agent.get("session_id", "")
+            else:
+                name = str(agent)
+                status = "working"
+                task = "Active"
+                last_update = ""
+                session_id = ""
+            
+            status_class = get_status_class(status)
+            
+            # Generate avatar based on name
+            import hashlib
+            seed = hashlib.md5(name.encode()).hexdigest()[:8]
+            avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={seed}&backgroundColor=ffeaa7"
+            
+            st.markdown(f"""
+            <div class="employee-card {status_class}">
+                <img src="{avatar}" width="80" style="border-radius: 50%; border: 3px solid #FFB6C1;">
+                <h3 style="margin: 10px 0 5px 0; color: #333 !important;">👤 {name}</h3>
+                <p style="margin: 0; color: #666; font-size: 0.9rem;">Agent</p>
+                <span class="status-badge status-{status}">{get_status_emoji(status)} {status.upper()}</span>
+                <p style="margin: 10px 0 5px 0; font-size: 0.85rem;">📝 {task}</p>
+                {f'<p style="margin: 0; font-size: 0.8rem; color: #888;">🕐 {last_update}</p>' if last_update else ''}
+            </div>
+            """, unsafe_allow_html=True)
+else:
+    st.info("📭 No active agents found. Start an agent to see it here!")
 
 # ======== Cron Jobs Section ========
 st.markdown("---")
@@ -417,60 +571,88 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-cron_cols = st.columns([2, 3, 2, 2, 1])
-
-# Header
-with cron_cols[0]:
-    st.markdown("**📋 Task Name**")
-with cron_cols[1]:
-    st.markdown("**⏰ Schedule**")
-with cron_cols[2]:
-    st.markdown("**🔄 Status**")
-with cron_cols[3]:
-    st.markdown("**🕐 Last Run**")
-with cron_cols[4]:
-    st.markdown("**⚡**")
-
-# Rows
-for cron in CRON_JOBS:
+if cron_data_list:
+    cron_cols = st.columns([2, 2, 2, 2, 1])
+    
+    # Header
     with cron_cols[0]:
-        st.markdown(f"📌 {cron['name']}")
+        st.markdown("**📋 Task Name**")
     with cron_cols[1]:
-        st.code(cron['schedule'], language="bash")
+        st.markdown("**⏰ Schedule**")
     with cron_cols[2]:
-        status_class = get_status_class(cron['status'])
-        st.markdown(f"""
-        <span class="cron-card {status_class}" style="display: inline-block; padding: 5px 10px; border-radius: 10px; border: none;">
-            {get_status_emoji(cron['status'])} {cron['status']}
-        </span>
-        """, unsafe_allow_html=True)
+        st.markdown("**🔄 Status**")
     with cron_cols[3]:
-        st.markdown(f"🕐 {cron['last_run']}")
+        st.markdown("**🕐 Last Run**")
     with cron_cols[4]:
-        if cron['status'] == 'running':
-            st.markdown("🔵")
-        elif cron['status'] == 'completed':
-            st.markdown("✅")
-        else:
-            st.markdown("⏳")
+        st.markdown("**⚡**")
+    
+    # Rows
+    for job in cron_data_list[:8]:  # Show max 8 cron jobs
+        with cron_cols[0]:
+            emoji = "🔔" if job.get("delivery", {}).get("channel") else "📋"
+            st.markdown(f"{emoji} {job.get('name', 'Unnamed')}")
+        with cron_cols[1]:
+            st.code(job.get('schedule', 'N/A'), language="bash")
+        with cron_cols[2]:
+            status = job.get("status", "unknown")
+            status_class = get_status_class(status)
+            st.markdown(f"""
+            <span class="cron-card {status_class}" style="display: inline-block; padding: 5px 10px; border-radius: 10px; border: none;">
+                {get_status_emoji(status)} {status}
+            </span>
+            """, unsafe_allow_html=True)
+        with cron_cols[3]:
+            st.markdown(f"🕐 {job.get('last_run', 'Never')}")
+        with cron_cols[4]:
+            last_status = job.get("last_status", "")
+            if last_status == "ok":
+                st.markdown("✅")
+            elif last_status == "error":
+                st.markdown("❌")
+            else:
+                st.markdown("⏳")
+else:
+    st.info("📭 No cron jobs configured.")
 
 # ======== Activity Log ========
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center;">
-    <h2 style="color: #9B59B6 !important;">📝 Activity Log 📝</h2>
+    <h2 style="color: #9B59B6 !important;">📝 Recent Activity 📝</h2>
     <p style="color: #666;">What's happening in the office today! 📌</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Sample activity log
-activities = [
-    ("🌸", "Sakura-chan", "Started processing new request", "Just now"),
-    ("❄️", "Yuki-kun", "Completed data analysis", "2 min ago"),
-    ("🌺", "Hana-san", "Scheduled new cron job", "5 min ago"),
-    ("🎵", "Kaito-kun", "Delivered 5 messages", "10 min ago"),
-    ("🍡", "Mochi-chan", "Saved memory to database", "15 min ago"),
-]
+# Try to get activity from Supabase, fallback to generated
+activities = []
+
+if use_supabase:
+    activity_data = fetch_recent_activity_from_supabase(5)
+    if activity_data:
+        for act in activity_data:
+            activities.append((
+                "📡",
+                act.get("agent_name", "System"),
+                act.get("description", "Activity logged"),
+                act.get("recorded_at", "")[:16] if act.get("recorded_at") else "Unknown"
+            ))
+
+# If no Supabase activity, show cron job activities
+if not activities:
+    for job in cron_data_list[:5]:
+        if job.get("last_status") == "ok":
+            activities.append((
+                "⚙️",
+                "Cron",
+                f"Completed: {job.get('name', 'Job')}",
+                job.get('last_run', 'Unknown')
+            ))
+
+if not activities:
+    activities = [
+        ("🌸", "System", "Dashboard loaded", datetime.now().strftime("%H:%M")),
+        ("⚙️", "System", "Connected to OpenClaw", datetime.now().strftime("%H:%M")),
+    ]
 
 for emoji, name, action, time_ago in activities:
     st.markdown(f"""
@@ -481,14 +663,45 @@ for emoji, name, action, time_ago in activities:
     </div>
     """, unsafe_allow_html=True)
 
+# ======== System Status ========
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center;">
+    <h2 style="color: #9B59B6 !important;">💻 System Status 💻</h2>
+    <p style="color: #666;">OpenClaw connection info! 🔌</p>
+</div>
+""", unsafe_allow_html=True)
+
+sys_cols = st.columns(3)
+
+with sys_cols[0]:
+    st.markdown("""
+    <div class="kawaii-card" style="text-align: center;">
+        <h3>📁 Sessions Dir</h3>
+        <p style="color: #666;">{}</p>
+    </div>
+    """.format(OPENCLAW_SESSIONS_DIR), unsafe_allow_html=True)
+
+with sys_cols[1]:
+    sessions_count = len(agents_data)
+    st.metric("📄 Active Sessions", sessions_count)
+
+with sys_cols[2]:
+    cron_enabled = sum(1 for c in cron_data_list if c.get("enabled", True))
+    st.metric("✅ Enabled Jobs", cron_enabled)
+
 # ======== Footer ========
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; padding: 20px; color: #888;">
-    <p>🌸 Made with 💕 and ☕ by anime office team your 🌸</p>
+    <p>🌸 Made with 💕 and ☕ by anime office team 🌸</p>
     <p>✨ Working hard or hardly working? Both! ✨</p>
+    <p class="live-indicator">
+        <span class="live-dot"></span> 
+        Data synced from OpenClaw {}
+    </p>
 </div>
-""", unsafe_allow_html=True)
+""".format(datetime.now().strftime("%H:%M:%S")), unsafe_allow_html=True)
 
 # ======== Auto-refresh ========
 if st.session_state.auto_refresh:
